@@ -1,6 +1,34 @@
+<div align="center">
+
 # WordCup-Analyst
 
-> Parallel multi-agent FIFA World Cup match-day briefings — powered by LangGraph, Groq, and free-tier data APIs.
+**Parallel multi-agent FIFA World Cup match-day briefings**
+
+<br>
+
+![Python](https://img.shields.io/badge/Python-3.12%2B-3776AB?style=for-the-badge&logo=python&logoColor=white)
+![Jupyter](https://img.shields.io/badge/Jupyter-Notebook-F37626?style=for-the-badge&logo=jupyter&logoColor=white)
+![LangChain](https://img.shields.io/badge/LangChain-1.4-1C3C3C?style=for-the-badge&logo=langchain&logoColor=white)
+![LangGraph](https://img.shields.io/badge/LangGraph-1.2-F59E0B?style=for-the-badge&logo=langgraph&logoColor=white)
+![RAG](https://img.shields.io/badge/RAG-Retrieval-22C55E?style=for-the-badge)
+![Multi-Agent](https://img.shields.io/badge/Multi--Agent-Orchestration-8B5CF6?style=for-the-badge)
+![Groq](https://img.shields.io/badge/Groq-Llama-F55036?style=for-the-badge)
+![Pydantic](https://img.shields.io/badge/Pydantic-2.x-E92063?style=for-the-badge&logo=pydantic&logoColor=white)
+![httpx](https://img.shields.io/badge/httpx-Async-5A67D8?style=for-the-badge)
+
+<br>
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
+![Status](https://img.shields.io/badge/Status-Active-brightgreen?style=flat-square)
+![API](https://img.shields.io/badge/API-Free%20Tier-success?style=flat-square)
+
+<br>
+
+*Ask one question. Three agents gather data in parallel. One synthesizer writes the briefing.*
+
+</div>
+
+---
 
 Ask a single question — *"Give me a briefing on Brazil's next match"* — and receive a structured preview covering form, a key player, and the latest storylines. Three specialist agents work in parallel; a synthesizer merges their output into one cohesive briefing.
 
