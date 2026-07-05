@@ -17,7 +17,15 @@ from app.config import apply_settings
 from app.main import run_briefing
 from app.ui.docx_export import build_briefing_docx, build_setup_guide_docx
 
-IMAGE_PATH = ROOT / "app" / "image" / "image.png"
+IMAGE_DIR = ROOT / "app" / "image"
+
+
+def _hero_image() -> Path | None:
+    for name in ("background.png", "image.png"):
+        path = IMAGE_DIR / name
+        if path.is_file():
+            return path
+    return None
 
 APP_CSS = """
 <style>
@@ -499,8 +507,9 @@ def _render_sidebar() -> None:
 
 def _render_visual_panel() -> None:
     st.markdown('<div class="visual-card">', unsafe_allow_html=True)
-    if IMAGE_PATH.is_file():
-        st.image(str(IMAGE_PATH), use_container_width=True)
+    hero = _hero_image()
+    if hero:
+        st.image(str(hero), use_container_width=True)
     st.markdown(
         """
         <div class="visual-caption">
