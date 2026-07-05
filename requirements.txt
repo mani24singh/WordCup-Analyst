@@ -1,0 +1,8 @@
+langgraph==1.2.5
+langchain-groq==1.1.3
+langchain-core==1.4.7
+tavily-python==0.7.26
+feedparser==6.0.12
+httpx==0.28.1
+pydantic==2.13.4
+python-dotenv==1.2.2
