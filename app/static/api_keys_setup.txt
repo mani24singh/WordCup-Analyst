@@ -1,0 +1,51 @@
+WorldCup Analyst — API Keys Setup Guide
+========================================
+
+Keys are entered in the app sidebar and stay in your browser session only.
+They are never stored on our servers.
+
+──────────────────────────────────────────────────────────────────────────────
+1. GROQ API KEY (required)
+──────────────────────────────────────────────────────────────────────────────
+Powers the AI agents and briefing synthesis.
+
+Steps:
+  1. Go to https://console.groq.com
+  2. Sign up or log in
+  3. Open "API Keys" in the left menu
+  4. Click "Create API Key", name it (e.g. worldcup-analyst)
+  5. Copy the key (starts with gsk_) and paste it into the Groq field in the app
+
+──────────────────────────────────────────────────────────────────────────────
+2. FOOTBALL DATA TOKEN (required)
+──────────────────────────────────────────────────────────────────────────────
+Provides live World Cup fixtures, standings, form, and scorers.
+
+Steps:
+  1. Go to https://www.football-data.org/client/register
+  2. Register for a free account
+  3. Log in and open your account / dashboard
+  4. Copy your X-Auth-Token
+  5. Paste it into the Football Data Token field in the app
+
+Note: The free tier allows 10 requests per minute — the app caches responses
+to stay within this limit.
+
+──────────────────────────────────────────────────────────────────────────────
+3. TAVILY API KEY (optional)
+──────────────────────────────────────────────────────────────────────────────
+Enables richer web news search for the News agent. Without it, RSS feeds are used.
+
+Steps:
+  1. Go to https://app.tavily.com/home
+  2. Sign up for a free account
+  3. Open your dashboard and create an API key
+  4. Copy the key (starts with tvly-) and paste it into the Tavily field in the app
+
+──────────────────────────────────────────────────────────────────────────────
+TROUBLESHOOTING
+──────────────────────────────────────────────────────────────────────────────
+- "Please add Groq / Football Data" → both required keys must be filled in
+- Briefing fails with HTTP 403 → check your Football Data token is correct
+- Briefing fails with auth error → regenerate your Groq key and try again
+- No news results → add a Tavily key, or rely on RSS-only mode

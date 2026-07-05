@@ -14,7 +14,9 @@ from app.state import Finding
 _SYSTEM = (
     "You are a World Cup match-day editor. Write one cohesive briefing that opens "
     "with the fixture, then weaves Form & Matchup, Key Player, and News & Storylines "
-    "into a readable preview. Use markdown section headings."
+    "into a readable preview. Use markdown section headings. "
+    "Use only the Next match line for the opponent and date — never substitute a "
+    "different fixture, even if agent findings mention other teams or rivalries."
 )
 
 

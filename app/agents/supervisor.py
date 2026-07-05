@@ -63,32 +63,35 @@ async def _route_query(query: str) -> _Route:
 async def _resolve_context(team: str) -> dict:
     """Resolve team id, opponent, and next fixture once for all downstream agents."""
     async with FootballDataClient() as client:
-        resolved = await client.resolve_team_id(team)
+        resolved = await client.resolve_team(team)
         if not resolved.ok or not resolved.data:
-            return {}
-        fixture = await client.next_match(resolved.data.id)
+            return {"team_resolve_error": resolved.error}
+        team_ref = resolved.data.ref
+        fixture = await client.next_match(team_ref.id)
+
+    canonical_name = resolved.data.matched_name
+    base = {
+        "team_name": canonical_name,
+        "team_name_input": team,
+        "team_name_corrected": resolved.data.corrected,
+        "team_id": team_ref.id,
+    }
 
     if not fixture.ok or not fixture.data:
-        return {
-            "team_name": team,
-            "team_id": resolved.data.id,
-            "next_match": None,
-        }
+        return {**base, "next_match": None}
 
     match = fixture.data
     home = match.home_team
     away = match.away_team
-    if home.id == resolved.data.id:
+    if home.id == team_ref.id:
         opponent = away
     else:
         opponent = home
     date_str = (match.utc_date or "")[:10]
     next_match = f"{home.name} vs {away.name} - {date_str}"
 
-    # store team_id, opponent_name, opponent_id, next_match in the returned dict
     return {
-        "team_name": team,
-        "team_id": resolved.data.id,
+        **base,
         "opponent_name": opponent.name,
         "opponent_id": opponent.id,
         "next_match": next_match,

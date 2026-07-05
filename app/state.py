@@ -26,6 +26,9 @@ class AnalystState(TypedDict, total=False):
 
     query: str
     team_name: str | None
+    team_name_input: str | None
+    team_name_corrected: bool
+    team_resolve_error: str | None
     team_id: int | None
     opponent_name: str | None
     opponent_id: int | None

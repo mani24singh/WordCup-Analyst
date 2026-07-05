@@ -38,6 +38,24 @@ SETTINGS = Settings(
 )
 
 
+def apply_settings(
+    *,
+    groq_api_key: str | None = None,
+    football_token: str | None = None,
+    tavily_api_key: str | None = None,
+) -> None:
+    """Override SETTINGS at runtime (e.g. from Streamlit sidebar inputs)."""
+    if groq_api_key is not None:
+        SETTINGS.groq_api_key = groq_api_key or None
+        os.environ["GROQ_API_KEY"] = groq_api_key
+    if football_token is not None:
+        SETTINGS.football_token = football_token or None
+        os.environ["FOOTBALL_DATA_TOKEN"] = football_token
+    if tavily_api_key is not None:
+        SETTINGS.tavily_api_key = tavily_api_key or None
+        os.environ["TAVILY_API_KEY"] = tavily_api_key
+
+
 def agent_model() -> ChatGroq:
     """The cheap 8b model that drives the agents' tool loops."""
     return ChatGroq(

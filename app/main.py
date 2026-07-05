@@ -20,22 +20,36 @@ from app.agents.runner import clear_tool_log, get_tool_log
 from app.graph import build_graph
 
 
-async def run(query: str, *, verbose: bool = False) -> str:
-    """Run the full graph and return the final briefing text."""
+async def run_briefing(query: str, *, verbose: bool = False) -> dict:
+    """Run the full graph and return structured briefing output."""
     if verbose:
         clear_tool_log()
     graph = build_graph()
     initial = {"query": query, "retries": 0, "findings": [], "missing": []}
-    # recursion_limit is a backstop so a misbehaving loop can't run forever
     final = await graph.ainvoke(initial, config={"recursion_limit": 25})
 
     if verbose:
         for line in get_tool_log():
             print(line)
 
-    if final.get("next_match"):
-        print(f"NEXT MATCH: {final['next_match']}\n")
-    return final.get("briefing") or "(no briefing produced)"
+    return {
+        "query": query,
+        "team_name": final.get("team_name"),
+        "team_name_input": final.get("team_name_input"),
+        "team_name_corrected": final.get("team_name_corrected", False),
+        "team_resolve_error": final.get("team_resolve_error"),
+        "next_match": final.get("next_match"),
+        "briefing": final.get("briefing") or "(no briefing produced)",
+        "tool_log": list(get_tool_log()) if verbose else [],
+    }
+
+
+async def run(query: str, *, verbose: bool = False) -> str:
+    """Run the full graph and return the final briefing text."""
+    result = await run_briefing(query, verbose=verbose)
+    if result.get("next_match"):
+        print(f"NEXT MATCH: {result['next_match']}\n")
+    return result["briefing"]
 
 
 def main() -> None:

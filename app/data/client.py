@@ -13,6 +13,7 @@ import httpx
 from app.config import SETTINGS
 from app.data.models import GroupStanding, Match, Scorer, TeamRef
 from app.data.results import ApiResult, explain_error, is_transient
+from app.data.teams import ResolvedTeam, match_team, suggest_teams
 
 # In-memory cache: keyed by URL, reused for 90 seconds to avoid 429 Too Many Requests
 _CACHE: dict[str, tuple[float, dict]] = {}
@@ -63,45 +64,72 @@ class FootballDataClient:
         except Exception as exc:
             return ApiResult(error=explain_error(exc), transient=is_transient(exc))
 
+    _DONE_STATUSES = frozenset({"FINISHED", "CANCELLED", "POSTPONED", "AWARDED"})
+
     async def next_match(self, team_id: int) -> ApiResult[Match]:
-        """Soonest upcoming World Cup fixture for a team (not yet finished)."""
+        """Soonest World Cup fixture for a team that has not finished yet."""
         try:
             today = date.today()
             payload = await self._get(
                 f"/teams/{team_id}/matches",
                 params={
                     "competitions": "WC",
-                    "dateFrom": today.isoformat(),
-                    "dateTo": (today + timedelta(days=60)).isoformat(),
+                    # Look a few days back so a fixture dated "yesterday" in UTC/local
+                    # is still returned while status is TIMED/SCHEDULED/IN_PLAY.
+                    "dateFrom": (today - timedelta(days=3)).isoformat(),
+                    "dateTo": (today + timedelta(days=90)).isoformat(),
                 },
             )
             upcoming = [
                 m
                 for m in (Match.model_validate(x) for x in payload.get("matches", []))
-                if m.status not in {"FINISHED", "IN_PLAY", "PAUSED"}
+                if m.status not in self._DONE_STATUSES
             ]
             upcoming.sort(key=lambda m: m.utc_date or "")
             return ApiResult(data=upcoming[0]) if upcoming else ApiResult(error="no fixture")
         except Exception as exc:
             return ApiResult(error=explain_error(exc), transient=is_transient(exc))
 
-    async def resolve_team_id(self, name: str) -> ApiResult[TeamRef]:
-        """Look up a World Cup team by partial name match."""
+    async def list_wc_teams(self) -> ApiResult[list[TeamRef]]:
+        """All teams registered for the World Cup competition."""
         try:
             payload = await self._get("/competitions/WC/teams")
-            needle = name.strip().lower()
-            for raw in payload.get("teams", []):
-                team = TeamRef.model_validate(raw)
-                if team.name and needle in team.name.lower():
-                    return ApiResult(data=team)
-            return ApiResult(error=f"no team '{name}'")
+            teams = [TeamRef.model_validate(raw) for raw in payload.get("teams", [])]
+            return ApiResult(data=teams)
+        except Exception as exc:
+            return ApiResult(error=explain_error(exc), transient=is_transient(exc))
+
+    async def resolve_team_id(self, name: str) -> ApiResult[TeamRef]:
+        """Look up a World Cup team by partial name match."""
+        resolved = await self.resolve_team(name)
+        if resolved.ok and resolved.data:
+            return ApiResult(data=resolved.data.ref)
+        return ApiResult(error=resolved.error or f"no team '{name}'")
+
+    async def resolve_team(self, name: str) -> ApiResult[ResolvedTeam]:
+        """Resolve a user-supplied team name with alias and fuzzy matching."""
+        try:
+            teams_result = await self.list_wc_teams()
+            if not teams_result.ok or not teams_result.data:
+                return ApiResult(error=teams_result.error or "teams unavailable")
+
+            matched = match_team(name, teams_result.data)
+            if matched:
+                return ApiResult(data=matched)
+
+            hints = suggest_teams(name, teams_result.data)
+            hint = f" Did you mean: {', '.join(hints)}?" if hints else ""
+            return ApiResult(error=f"no team '{name}'.{hint}")
         except Exception as exc:
             return ApiResult(error=explain_error(exc), transient=is_transient(exc))
 
     async def team_form(self, team_id: int, limit: int = 5) -> ApiResult[list[Match]]:
         """Last N finished matches for W/D/L form analysis."""
         try:
-            payload = await self._get(f"/teams/{team_id}/matches", params={"limit": limit})
+            payload = await self._get(
+                f"/teams/{team_id}/matches",
+                params={"competitions": "WC", "limit": limit},
+            )
             matches = [Match.model_validate(x) for x in payload.get("matches", [])]
             finished = [m for m in matches if m.status == "FINISHED"]
             return ApiResult(data=finished[:limit])
