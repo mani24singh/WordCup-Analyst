@@ -43,7 +43,7 @@ Steps:
   4. Copy the key (starts with tvly-) and paste it into the Tavily field in the app
 
 ──────────────────────────────────────────────────────────────────────────────
-TROUBLESHOOTING
+TROUBLESHOOTING TIPS
 ──────────────────────────────────────────────────────────────────────────────
 - "Please add Groq / Football Data" → both required keys must be filled in
 - Briefing fails with HTTP 403 → check your Football Data token is correct
