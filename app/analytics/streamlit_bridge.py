@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import uuid
 from typing import Any
 
@@ -9,24 +10,37 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 from app.analytics.client import AnalyticsClient
-from app.analytics.gtag import parent_frame_gtag_html
-from app.analytics.settings import ANALYTICS
+from app.analytics.gtag import gtag_fragment_html, parent_frame_gtag_html
+from app.analytics.settings import AnalyticsSettings, load_analytics_settings
+
+logger = logging.getLogger(__name__)
 
 
 class StreamlitAnalytics:
     """
     Detachable analytics facade for the Streamlit UI.
 
-    Disable entirely: unset GA_MEASUREMENT_ID / GA_API_SECRET or set GA_ENABLED=false.
-    Remove layer: delete imports and calls from streamlit_app.py.
+    Primary data path: Measurement Protocol (needs GA_MEASUREMENT_ID + GA_API_SECRET).
+    Browser gtag is optional; Google's tag wizard often fails on Streamlit anyway.
     """
 
     def __init__(self) -> None:
-        self._settings = ANALYTICS
+        self.reload_settings()
+
+    def reload_settings(self) -> None:
+        self._settings = load_analytics_settings()
 
     @property
     def active(self) -> bool:
-        return self._settings.active
+        return self._settings.server_active
+
+    @property
+    def debug_enabled(self) -> bool:
+        return self._settings.debug
+
+    @property
+    def client_tag_enabled(self) -> bool:
+        return self._settings.client_tag_active
 
     def bind_session(self) -> None:
         """Ensure a stable anonymous client_id for this browser session."""
@@ -47,35 +61,104 @@ class StreamlitAnalytics:
         st.session_state[flag] = True
 
     def track(self, name: str, params: dict[str, Any] | None = None, **user_props: Any) -> None:
-        user_properties = user_props or None
-        self._client().track(name, params, user_properties=user_properties)
+        debug = self._settings.debug
+        result = self._client().track(
+            name,
+            params,
+            user_properties=user_props or None,
+            debug=debug,
+        )
+        if debug:
+            st.session_state["_ga_last_event"] = name
+            st.session_state["_ga_last_debug"] = result
+            messages = (result or {}).get("validationMessages") or []
+            st.session_state["_ga_last_ok"] = not messages
 
     def inject_client_tag(self) -> None:
-        """
-        Inject gtag.js into the Streamlit parent page (visible to Google Tag Assistant).
-
-        Needs only GA_MEASUREMENT_ID. Disable with GA_CLIENT_INJECT=false.
-        """
+        """Optional gtag inject — not required for Measurement Protocol events."""
         if not self._settings.client_tag_active:
             return
-        snippet = parent_frame_gtag_html(self._settings.measurement_id or "")
-        if not snippet:
+
+        mid = self._settings.measurement_id or ""
+        full = parent_frame_gtag_html(mid)
+        if not full:
             return
-        # Component iframe; script in gtag.py escapes into window.parent.document
-        try:
+
+        injected = False
+
+        if hasattr(st, "html"):
             try:
-                components.html(snippet, height=0, width=0, scrolling=False)
+                st.html(full)
+                injected = True
+            except Exception as exc:
+                logger.debug("st.html gtag inject failed: %s", exc)
+
+        if not injected:
+            try:
+                components.html(full, height=1, width=1)
+                injected = True
             except TypeError:
-                components.html(snippet, height=0, width=0)
-        except Exception:
-            pass  # analytics must never crash the app
+                components.html(full, height=1)
+            except Exception as exc:
+                logger.debug("components.html full gtag inject failed: %s", exc)
+
+        if not injected:
+            fragment = gtag_fragment_html(mid)
+            if fragment:
+                try:
+                    components.html(fragment, height=1, width=1)
+                except Exception as exc:
+                    logger.debug("components.html fragment gtag inject failed: %s", exc)
+
+        st.session_state["_ga_tag_injected"] = injected
+
+    def debug_status(self) -> str | None:
+        """Status line for sidebar when GA_DEBUG=true."""
+        if not self._settings.enabled:
+            return "GA disabled (GA_ENABLED=false)"
+        mid = self._settings.measurement_id
+        if not mid:
+            return "GA_MEASUREMENT_ID missing — add to Streamlit Secrets and reboot"
+        secret = self._settings.api_secret
+        if not secret:
+            return f"ID {mid[:8]}… · MP off — set GA_API_SECRET in Secrets and reboot"
+
+        parts = [f"ID {mid[:8]}…", "MP on"]
+        if self._settings.client_tag_active:
+            parts.append("gtag on" if st.session_state.get("_ga_tag_injected") else "gtag inject pending")
+        if st.session_state.get("_ga_last_event"):
+            ok = st.session_state.get("_ga_last_ok")
+            parts.append(
+                f"last {st.session_state['_ga_last_event']} "
+                + ("ok" if ok else "FAILED")
+            )
+        return " · ".join(parts)
+
+    def debug_detail(self) -> str | None:
+        """Validation messages from the debug MP endpoint."""
+        payload = st.session_state.get("_ga_last_debug")
+        if not payload:
+            return None
+        messages = payload.get("validationMessages") or []
+        if not messages:
+            return "Last event validated OK (check GA4 → Realtime within 30s)"
+        lines = []
+        for msg in messages[:5]:
+            if isinstance(msg, dict):
+                lines.append(msg.get("description") or str(msg))
+            else:
+                lines.append(str(msg))
+        return "; ".join(lines)
+
+    def _page_location(self) -> str:
+        return self._settings.app_url.rstrip("/") + "/"
 
     def track_page_view(self) -> None:
         self.track(
             "page_view",
             {
                 "page_title": "WorldCup Analyst",
-                "page_location": "streamlit_app",
+                "page_location": self._page_location(),
                 "engagement_time_msec": 100,
             },
         )
@@ -135,4 +218,6 @@ def get_analytics() -> StreamlitAnalytics:
     global _layer
     if _layer is None:
         _layer = StreamlitAnalytics()
+    else:
+        _layer.reload_settings()
     return _layer

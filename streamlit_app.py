@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import sys
 from datetime import datetime
 from functools import lru_cache
@@ -505,6 +506,15 @@ def _render_sidebar() -> None:
         st.caption("Keys stay in this session only.")
         st.divider()
         st.caption("🧠 Agents: Matchup · Player · News")
+
+        analytics = get_analytics()
+        if analytics.debug_enabled:
+            status = analytics.debug_status()
+            if status:
+                st.caption(f"📊 GA debug: {status}")
+            detail = analytics.debug_detail()
+            if detail:
+                st.caption(detail)
 
 
 def _render_visual_panel() -> None:

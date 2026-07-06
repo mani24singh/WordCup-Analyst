@@ -1,26 +1,36 @@
-"""Google gtag.js snippet for Streamlit (injects into parent document)."""
+"""Google gtag.js snippets for Streamlit (parent-frame injection)."""
+
+
+def _valid_measurement_id(measurement_id: str) -> str | None:
+    mid = (measurement_id or "").strip()
+    if mid.startswith("G-") and len(mid) > 3:
+        return mid
+    return None
 
 
 def parent_frame_gtag_html(measurement_id: str) -> str:
     """
-    Install gtag on the Streamlit parent page so Google's tag checker detects it.
+    Install gtag on the top-level Streamlit page.
 
-    Streamlit renders components inside iframes; scripts in the iframe are invisible
-    to Google Tag Assistant. This script escapes into window.parent.document.
+    Streamlit components run inside iframes. This script tries window.top,
+    window.parent, then the component document, with retries until the DOM is ready.
     """
-    # Measurement IDs are always G-XXXXXXXX — safe to embed after strip check
-    mid = measurement_id.strip()
-    if not mid.startswith("G-"):
+    mid = _valid_measurement_id(measurement_id)
+    if not mid:
         return ""
 
-    return f"""<!DOCTYPE html><html><head></head><body>
+    return f"""<!DOCTYPE html><html><head>
+<style>html,body{{margin:0;padding:0;height:0;overflow:hidden;}}</style>
+</head><body>
 <script>
 (function () {{
   var MID = "{mid}";
   var FLAG = "wc_ga_gtag_installed";
 
   function install(doc) {{
-    if (!doc || doc.getElementById(FLAG)) return;
+    if (!doc || !doc.head || doc.getElementById(FLAG)) {{
+      return false;
+    }}
 
     var loader = doc.createElement("script");
     loader.async = true;
@@ -35,19 +45,52 @@ def parent_frame_gtag_html(measurement_id: str) -> str:
       "gtag('js', new Date());",
       "gtag('config', '" + MID + "', {{",
       "  send_page_view: true,",
-      "  anonymize_ip: true,",
-      "  page_title: 'WorldCup Analyst',",
-      "  page_location: window.parent.location.href",
+      "  anonymize_ip: true",
       "}});"
     ].join("\\n");
     doc.head.appendChild(inline);
+    return true;
   }}
 
-  try {{
-    install(window.parent.document);
-  }} catch (err) {{
-    install(document);
+  function targets() {{
+    var docs = [];
+    try {{
+      if (window.top && window.top.document) docs.push(window.top.document);
+    }} catch (e) {{}}
+    try {{
+      if (window.parent && window.parent.document) docs.push(window.parent.document);
+    }} catch (e) {{}}
+    docs.push(document);
+    return docs;
+  }}
+
+  function tryInstall() {{
+    var docs = targets();
+    for (var i = 0; i < docs.length; i++) {{
+      try {{
+        if (install(docs[i])) return true;
+      }} catch (e) {{}}
+    }}
+    return false;
+  }}
+
+  if (!tryInstall()) {{
+    var n = 0;
+    var timer = setInterval(function () {{
+      n += 1;
+      if (tryInstall() || n >= 25) clearInterval(timer);
+    }}, 200);
   }}
 }})();
 </script>
 </body></html>"""
+
+
+def gtag_fragment_html(measurement_id: str) -> str:
+    """Minimal fragment fallback (no DOCTYPE) for older component renderers."""
+    mid = _valid_measurement_id(measurement_id)
+    if not mid:
+        return ""
+    return parent_frame_gtag_html(mid).replace("<!DOCTYPE html><html><body>", "").replace(
+        "</body></html>", ""
+    )

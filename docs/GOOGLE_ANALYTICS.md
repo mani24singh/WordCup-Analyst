@@ -89,19 +89,22 @@ GA_ENABLED=true
 GA_MEASUREMENT_ID=G-XXXXXXXXXX
 GA_API_SECRET=your_measurement_protocol_secret
 
-# Browser gtag (default true — needed for Google's tag detection wizard)
+# Browser gtag (optional — Streamlit wizard often still fails)
 GA_CLIENT_INJECT=true
+GA_DEBUG=false
+GA_APP_URL=https://wordcup-analyst-2026.streamlit.app
 ```
 
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `GA_ENABLED` | No | `true` / `false`. Set `false` to disable without deleting keys |
-| `GA_MEASUREMENT_ID` | Yes† | Web stream ID (`G-...`) — **required for gtag detection** |
-| `GA_API_SECRET` | Yes‡ | Measurement Protocol secret — for server custom events |
-| `GA_CLIENT_INJECT` | No | Default `true`. Injects gtag into the page. Set `false` to disable browser tag only |
+| `GA_MEASUREMENT_ID` | **Yes** | Web stream ID (`G-...`) |
+| `GA_API_SECRET` | **Yes** | Measurement Protocol secret — **without this, GA shows nothing** |
+| `GA_CLIENT_INJECT` | No | Default `true`. Optional browser gtag inject |
+| `GA_DEBUG` | No | `true` shows MP validation in the sidebar |
+| `GA_APP_URL` | No | Full app URL used in `page_location` (defaults to live deploy URL) |
 
-†Minimum for Google's tag checker to pass.  
-‡Required for server-side custom events (`briefing_generated`, etc.). Tag detection works without it.
+**Both `GA_MEASUREMENT_ID` and `GA_API_SECRET` are required** for events to appear in GA4 Realtime. The Measurement ID alone (gtag only) is not enough for this app's custom events.
 
 ### Streamlit Cloud
 
@@ -112,9 +115,31 @@ GA_ENABLED = "true"
 GA_MEASUREMENT_ID = "G-XXXXXXXXXX"
 GA_API_SECRET = "your_secret"
 GA_CLIENT_INJECT = "true"
+GA_DEBUG = "true"
+GA_APP_URL = "https://wordcup-analyst-2026.streamlit.app"
 ```
 
 Redeploy after saving secrets.
+
+---
+
+## Troubleshooting: No data in GA4 at all
+
+If **Realtime shows zero users** and **Events stay empty**, check these in order:
+
+1. **Streamlit Cloud Secrets** (not only local `.env`) must include **both**:
+   ```toml
+   GA_ENABLED = "true"
+   GA_MEASUREMENT_ID = "G-XXXXXXXXXX"
+   GA_API_SECRET = "your_measurement_protocol_secret"
+   ```
+2. **Reboot the app** after saving secrets (Settings → Secrets → Save → Manage app → Reboot).
+3. Set **`GA_DEBUG = "true"`** temporarily. Open the live app sidebar — you should see:
+   - `MP on` (not `MP off — set GA_API_SECRET`)
+   - `last page_view ok` (not `FAILED`)
+4. Open **GA4 → Reports → Realtime** while browsing the live app. Data appears within ~30 seconds.
+
+**Do not rely on Google's "tag detected" wizard** for Streamlit — use Realtime instead.
 
 ---
 
@@ -141,10 +166,21 @@ Google's setup wizard looks for **gtag.js on the live page**. Streamlit hides no
 ### If still not detected
 
 - Confirm the Measurement ID matches the **Web** data stream for your Streamlit URL (not an old test stream).
-- Try **GA4 → Admin → Data streams → your stream → View tag instructions** and compare the `G-` ID.
-- Use **Realtime** report instead of the wizard: open the app in another tab; Realtime should show 1 active user within 30s if gtag works.
+- Data stream URL must be `https://wordcup-analyst-2026.streamlit.app` (same host you test).
+- Set `GA_DEBUG=true` in Streamlit secrets, redeploy, and read **📊 GA debug** at the bottom of the sidebar. It should show `ID G-XXXX… · gtag on · injected`.
+- If it shows `GA_MEASUREMENT_ID not set` → add the secret and **reboot** the app.
 
-Server-only events (`GA_API_SECRET`) do **not** satisfy Google's tag wizard — you need `GA_MEASUREMENT_ID` + client inject.
+### Streamlit + GA wizard limitation
+
+Google's automated **"Test your website"** often reports *tag not detected* on **Streamlit apps** even when analytics works. Streamlit is a JavaScript SPA; the checker may run before gtag injects.
+
+**Trust these instead:**
+
+1. **GA4 → Reports → Realtime** — open your live app; you should see 1 user within 30s.
+2. **Browser DevTools → Network** — filter `gtag` while on the live app.
+3. **[Tag Assistant Chrome extension](https://tagassistant.google.com/)** — connect while browsing your Streamlit URL.
+
+Server-only events (`GA_API_SECRET`) do **not** satisfy Google's tag wizard — you need `GA_MEASUREMENT_ID` + `GA_CLIENT_INJECT=true`.
 
 ---
 
