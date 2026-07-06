@@ -13,6 +13,7 @@ import streamlit as st
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
 
+from app.analytics import get_analytics
 from app.config import apply_settings
 from app.main import run_briefing
 from app.ui.docx_export import build_briefing_docx, build_setup_guide_docx
@@ -499,6 +500,7 @@ def _render_sidebar() -> None:
             mime=DOCX_MIME,
             use_container_width=True,
             key="setup_guide_download",
+            on_click=lambda: get_analytics().track_setup_guide_download(),
         )
         st.caption("Keys stay in this session only.")
         st.divider()
@@ -553,7 +555,7 @@ def _render_controls() -> bool:
         return st.button("⚽ Generate briefing", type="primary", use_container_width=True)
 
 
-def _render_briefing_full_width(result: dict) -> None:
+def _render_briefing_full_width(result: dict, analytics) -> None:
     """Full-width briefing section below the top two columns."""
     st.markdown('<div class="briefing-zone">', unsafe_allow_html=True)
     st.markdown('<p class="section-label">📋 Match briefing</p>', unsafe_allow_html=True)
@@ -578,6 +580,7 @@ def _render_briefing_full_width(result: dict) -> None:
 
     team_slug = (result.get("team_name") or "worldcup").lower().replace(" ", "_")
     filename = f"briefing_{team_slug}_{datetime.now().strftime('%Y%m%d_%H%M')}.docx"
+    team = result.get("team_name")
     st.download_button(
         label="📥 Download briefing (.docx)",
         data=build_briefing_docx(result),
@@ -585,6 +588,7 @@ def _render_briefing_full_width(result: dict) -> None:
         mime=DOCX_MIME,
         use_container_width=True,
         key="briefing_download",
+        on_click=lambda: analytics.track_briefing_download(team),
     )
     st.markdown("</div>", unsafe_allow_html=True)
 
@@ -599,6 +603,12 @@ def main() -> None:
     st.markdown(APP_CSS, unsafe_allow_html=True)
     _inject_bouncing_football()
     _init_session()
+
+    analytics = get_analytics()
+    analytics.bind_session()
+    analytics.once_per_session("page_view", analytics.track_page_view)
+    analytics.inject_client_tag()
+
     _render_sidebar()
 
     st.markdown(
@@ -616,6 +626,14 @@ def main() -> None:
 
     with col_controls:
         st.markdown(_status_html(), unsafe_allow_html=True)
+        analytics.once_per_session(
+            "session_context",
+            lambda: analytics.track_session_context(
+                groq=bool(_session_get("groq_key")),
+                football=bool(_session_get("football_key")),
+                tavily=bool(_session_get("tavily_key")),
+            ),
+        )
         generate = _render_controls()
 
     with col_image:
@@ -624,18 +642,28 @@ def main() -> None:
     if generate:
         missing = _validate_keys()
         if missing:
+            analytics.track_keys_missing(missing)
             _prompt_missing_keys(missing)
         elif not _session_get("query"):
             st.info("💬 Enter a briefing question, then click **Generate briefing**.")
         else:
             _apply_user_keys()
+            analytics.track_briefing_requested(len(_session_get("query")))
             with st.spinner("🔄 Running agents in parallel…"):
                 try:
                     st.session_state.result = asyncio.run(
                         run_briefing(_session_get("query"))
                     )
+                    outcome = st.session_state.result
+                    if outcome.get("team_resolve_error"):
+                        analytics.track_briefing_error(
+                            "team_resolve", outcome["team_resolve_error"]
+                        )
+                    else:
+                        analytics.track_briefing_generated(outcome)
                 except Exception as exc:
                     st.session_state.result = None
+                    analytics.track_briefing_error("exception", str(exc))
                     st.warning(_friendly_briefing_error(exc))
 
     result = st.session_state.result
@@ -647,7 +675,7 @@ def main() -> None:
                 "Try a valid World Cup team (e.g. Brazil, France, USA)."
             )
         else:
-            _render_briefing_full_width(result)
+            _render_briefing_full_width(result, analytics)
 
     st.markdown(
         '<p class="footer-note">⚽ football-data.org · Groq · Tavily</p>',

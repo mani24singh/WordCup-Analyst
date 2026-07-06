@@ -211,9 +211,18 @@ cp .env_example .env
 GROQ_API_KEY=your_groq_key
 FOOTBALL_DATA_TOKEN=your_football_token
 TAVILY_API_KEY=                   # optional — leave empty to use RSS only
+
+# Optional analytics (see docs/GOOGLE_ANALYTICS.md)
+GA_ENABLED=true
+GA_MEASUREMENT_ID=
+GA_API_SECRET=
 ```
 
 > Never commit `.env` to version control.
+
+### Google Analytics (optional)
+
+Detachable GA4 layer for usage insights (geo, device, custom events). Setup guide: **[docs/GOOGLE_ANALYTICS.md](docs/GOOGLE_ANALYTICS.md)**. Disable anytime with `GA_ENABLED=false` or by removing `GA_MEASUREMENT_ID`.
 
 ---
 
@@ -315,6 +324,10 @@ WordCup-Analyst/
 │   │   ├── sportsdb.py          # TheSportsDB player bios
 │   │   ├── models.py            # Pydantic data models
 │   │   └── results.py           # ApiResult wrapper
+│   ├── analytics/               # Optional GA4 layer (detachable)
+│   │   ├── client.py            # Measurement Protocol sender
+│   │   ├── settings.py          # GA_* env config
+│   │   └── streamlit_bridge.py  # Streamlit event hooks
 │   └── agents/
 │       ├── supervisor.py        # Router and fixture resolution
 │       ├── matchup.py           # Form & standings agent
@@ -323,6 +336,9 @@ WordCup-Analyst/
 │       ├── synthesizer.py       # Briefing writer (fan-in)
 │       ├── runner.py            # ReAct loop + backoff
 │       └── tools.py             # Per-agent tool factories
+├── docs/
+│   └── GOOGLE_ANALYTICS.md      # GA4 setup & integration guide
+├── streamlit_app.py             # Streamlit BYOK UI
 ├── verify_client.py             # Step 3 smoke test
 ├── verify_player.py             # Step 8 smoke test
 ├── verify_run.py                # End-to-end workflow test
@@ -359,8 +375,3 @@ Upgrading to paid API tiers does not require architectural changes.
 | `VERIFICATION FAILED` on first run | Check API keys; wait 60s if football-data rate-limited |
 
 ---
-
-## Further Reading
-
-- `PROJECT_GAP_ANALYSIS.md` — step-by-step build checklist
-- `Build_a_Parallel_Multi-Agent_World_Cup_Analyst_in_60_Minutes.pdf` — full architecture guide
