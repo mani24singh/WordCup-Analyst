@@ -61,11 +61,14 @@ class StreamlitAnalytics:
         snippet = parent_frame_gtag_html(self._settings.measurement_id or "")
         if not snippet:
             return
-        # st.html renders a component iframe; script escapes to parent.document
-        if hasattr(st, "html"):
-            st.html(snippet, height=0)
-        else:
-            components.html(snippet, height=0, width=0)
+        # Component iframe; script in gtag.py escapes into window.parent.document
+        try:
+            try:
+                components.html(snippet, height=0, width=0, scrolling=False)
+            except TypeError:
+                components.html(snippet, height=0, width=0)
+        except Exception:
+            pass  # analytics must never crash the app
 
     def track_page_view(self) -> None:
         self.track(
