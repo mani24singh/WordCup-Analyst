@@ -359,8 +359,3 @@ Upgrading to paid API tiers does not require architectural changes.
 | `VERIFICATION FAILED` on first run | Check API keys; wait 60s if football-data rate-limited |
 
 ---
-
-## Further Reading
-
-- `PROJECT_GAP_ANALYSIS.md` — step-by-step build checklist
-- `Build_a_Parallel_Multi-Agent_World_Cup_Analyst_in_60_Minutes.pdf` — full architecture guide
