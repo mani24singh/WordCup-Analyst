@@ -26,13 +26,23 @@ class AnalyticsSettings:
     inject_client_tag: bool
 
     @property
-    def active(self) -> bool:
+    def server_active(self) -> bool:
+        """Server-side Measurement Protocol (custom events)."""
         return self.enabled and bool(self.measurement_id and self.api_secret)
+
+    @property
+    def client_tag_active(self) -> bool:
+        """Browser gtag.js — required for Google's tag detection wizard."""
+        return self.enabled and bool(self.measurement_id) and self.inject_client_tag
+
+    @property
+    def active(self) -> bool:
+        return self.server_active
 
 
 ANALYTICS = AnalyticsSettings(
     enabled=_truthy(os.getenv("GA_ENABLED"), default=True),
     measurement_id=(os.getenv("GA_MEASUREMENT_ID") or "").strip() or None,
     api_secret=(os.getenv("GA_API_SECRET") or "").strip() or None,
-    inject_client_tag=_truthy(os.getenv("GA_CLIENT_INJECT"), default=False),
+    inject_client_tag=_truthy(os.getenv("GA_CLIENT_INJECT"), default=True),
 )

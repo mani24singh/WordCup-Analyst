@@ -1,6 +1,11 @@
 # Google Analytics 4 (Free) — Setup & Integration
 
-This project includes an **optional, detachable** analytics layer. It uses **Google Analytics 4 (GA4)** on the free tier and sends events from the Streamlit app via the **Measurement Protocol** (server-side). No analytics code runs when keys are missing or `GA_ENABLED=false`.
+This project includes an **optional, detachable** analytics layer. It uses **Google Analytics 4 (GA4)** on the free tier with two channels:
+
+1. **Browser gtag.js** — so Google's *"tag detected on your website"* check passes (injected into the Streamlit parent page).
+2. **Measurement Protocol** (server-side) — detailed custom events (briefing generated, downloads, errors).
+
+No analytics runs when `GA_ENABLED=false` or keys are missing.
 
 ---
 
@@ -84,18 +89,19 @@ GA_ENABLED=true
 GA_MEASUREMENT_ID=G-XXXXXXXXXX
 GA_API_SECRET=your_measurement_protocol_secret
 
-# Optional: also inject browser gtag.js (default false)
-GA_CLIENT_INJECT=false
+# Browser gtag (default true — needed for Google's tag detection wizard)
+GA_CLIENT_INJECT=true
 ```
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `GA_ENABLED` | No | `true` / `false`. Default `true` if vars set; set `false` to disable without deleting keys |
-| `GA_MEASUREMENT_ID` | Yes* | Web stream ID (`G-...`) |
-| `GA_API_SECRET` | Yes* | Measurement Protocol secret |
-| `GA_CLIENT_INJECT` | No | `true` to add optional client-side gtag snippet |
+| `GA_ENABLED` | No | `true` / `false`. Set `false` to disable without deleting keys |
+| `GA_MEASUREMENT_ID` | Yes† | Web stream ID (`G-...`) — **required for gtag detection** |
+| `GA_API_SECRET` | Yes‡ | Measurement Protocol secret — for server custom events |
+| `GA_CLIENT_INJECT` | No | Default `true`. Injects gtag into the page. Set `false` to disable browser tag only |
 
-\*Both required for analytics to activate. If either is empty, the layer is a no-op.
+†Minimum for Google's tag checker to pass.  
+‡Required for server-side custom events (`briefing_generated`, etc.). Tag detection works without it.
 
 ### Streamlit Cloud
 
@@ -105,9 +111,40 @@ In your app dashboard → **Settings** → **Secrets**, add the same variables:
 GA_ENABLED = "true"
 GA_MEASUREMENT_ID = "G-XXXXXXXXXX"
 GA_API_SECRET = "your_secret"
+GA_CLIENT_INJECT = "true"
 ```
 
 Redeploy after saving secrets.
+
+---
+
+## Troubleshooting: "Your Google tag wasn't detected"
+
+Google's setup wizard looks for **gtag.js on the live page**. Streamlit hides normal `<script>` tags inside iframes, so a basic embed will fail detection.
+
+**This project fixes that** by injecting gtag into `window.parent.document` (see `app/analytics/gtag.py`).
+
+### Checklist
+
+1. **`GA_MEASUREMENT_ID` is set** in Streamlit Cloud **Secrets** (not only locally in `.env`).
+2. **`GA_CLIENT_INJECT` is not `false`** (default is `true`).
+3. **Redeploy** the app after changing secrets (Settings → Secrets → Save → Reboot app).
+4. Open your live URL: `https://wordcup-analyst-2026.streamlit.app/`
+5. Wait 10–20 seconds on the page, then run Google's tag checker again.
+
+### Verify in browser DevTools
+
+1. Open the live app → **F12** → **Network** tab
+2. Filter by `gtag` or `google`
+3. You should see a request to `googletagmanager.com/gtag/js?id=G-XXXXXXXXXX`
+
+### If still not detected
+
+- Confirm the Measurement ID matches the **Web** data stream for your Streamlit URL (not an old test stream).
+- Try **GA4 → Admin → Data streams → your stream → View tag instructions** and compare the `G-` ID.
+- Use **Realtime** report instead of the wizard: open the app in another tab; Realtime should show 1 active user within 30s if gtag works.
+
+Server-only events (`GA_API_SECRET`) do **not** satisfy Google's tag wizard — you need `GA_MEASUREMENT_ID` + client inject.
 
 ---
 
@@ -143,6 +180,7 @@ app/analytics/
 ├── __init__.py           # public exports
 ├── settings.py           # reads GA_* from environment
 ├── client.py             # Measurement Protocol HTTP sender
+├── gtag.py               # Parent-frame gtag injector (tag detection)
 └── streamlit_bridge.py   # Streamlit hooks + event helpers
 ```
 

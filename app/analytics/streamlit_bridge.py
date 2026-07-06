@@ -9,6 +9,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 from app.analytics.client import AnalyticsClient
+from app.analytics.gtag import parent_frame_gtag_html
 from app.analytics.settings import ANALYTICS
 
 
@@ -50,23 +51,21 @@ class StreamlitAnalytics:
         self._client().track(name, params, user_properties=user_properties)
 
     def inject_client_tag(self) -> None:
-        """Optional browser gtag snippet (off by default). Set GA_CLIENT_INJECT=true."""
-        if not self._settings.active or not self._settings.inject_client_tag:
+        """
+        Inject gtag.js into the Streamlit parent page (visible to Google Tag Assistant).
+
+        Needs only GA_MEASUREMENT_ID. Disable with GA_CLIENT_INJECT=false.
+        """
+        if not self._settings.client_tag_active:
             return
-        mid = self._settings.measurement_id
-        components.html(
-            f"""
-            <script async src="https://www.googletagmanager.com/gtag/js?id={mid}"></script>
-            <script>
-              window.dataLayer = window.dataLayer || [];
-              function gtag(){{dataLayer.push(arguments);}}
-              gtag('js', new Date());
-              gtag('config', '{mid}', {{'anonymize_ip': true}});
-            </script>
-            """,
-            height=0,
-            width=0,
-        )
+        snippet = parent_frame_gtag_html(self._settings.measurement_id or "")
+        if not snippet:
+            return
+        # st.html renders a component iframe; script escapes to parent.document
+        if hasattr(st, "html"):
+            st.html(snippet, height=0)
+        else:
+            components.html(snippet, height=0, width=0)
 
     def track_page_view(self) -> None:
         self.track(
